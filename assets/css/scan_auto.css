@@ -1,0 +1,287 @@
+/* ===================== Tổng thể ===================== */
+body {
+  font-family: system-ui, Arial, sans-serif;
+  background: #fff;
+  color: #111;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+/* ===================== HEADER + MENU ===================== */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  background: #f9fafb;
+  border-bottom: 1px solid #ddd;
+  padding: 10px 15px;
+  position: relative;
+  z-index: 1001;
+}
+
+.menu-btn {
+  width: 28px;
+  height: 22px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  cursor: pointer;
+  margin-right: 15px;
+}
+
+.menu-btn span {
+  display: block;
+  height: 3px;
+  background: #333;
+  border-radius: 2px;
+  transition: 0.3s;
+}
+
+/* Nút xoay khi sidebar mở */
+#sidebar.active ~ .topbar .menu-btn span:nth-child(1) {
+  transform: translateY(9px) rotate(45deg);
+}
+#sidebar.active ~ .topbar .menu-btn span:nth-child(2) {
+  opacity: 0;
+}
+#sidebar.active ~ .topbar .menu-btn span:nth-child(3) {
+  transform: translateY(-9px) rotate(-45deg);
+}
+
+.header-title h1 {
+  margin: 0;
+  font-size: 1.4rem;
+}
+.header-title p {
+  color: #555;
+  margin: 2px 0 0;
+  font-size: 0.9rem;
+}
+
+/* ===================== SIDEBAR ===================== */
+#sidebar {
+  position: fixed;
+  top: 0;
+  left: -260px; /* Ẩn mặc định */
+  width: 260px;
+  height: 100vh;
+  background: #f3f4f6;
+  box-shadow: 2px 0 8px rgba(0,0,0,0.15);
+  transition: left 0.3s ease;
+  padding-top: 70px; /* tránh header */
+  z-index: 1000;
+}
+
+#sidebar.active {
+  left: 0;
+}
+
+#sidebar ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+#sidebar li {
+  margin: 4px 0; /* thêm chút khoảng cách giữa các mục */
+}
+
+#sidebar a {
+  display: block;
+  padding: 16px 24px; /* dãn cao hơn và lùi text vào trong một chút */
+  color: #111;
+  text-decoration: none;
+  font-size: 1rem;
+  font-weight: 500;
+  border-left: 4px solid transparent;
+  transition: background 0.25s, border-color 0.25s;
+}
+
+#sidebar a:hover {
+  background: #e0e7ff;
+  border-left: 4px solid #3b82f6; /* màu xanh viền khi hover */
+  color: #1e3a8a;
+}
+
+/* Hiệu ứng khi sidebar đang mở */
+#sidebar.active {
+  left: 0;
+}
+
+/* ===================== MAIN CONTENT ===================== */
+.main-grid {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 20px;
+  gap: 20px;
+  transition: margin-left 0.3s ease;
+}
+
+#sidebar.active ~ main {
+  margin-left: 240px;
+}
+
+/* ===================== KHUNG BÊN ===================== */
+.side {
+  width: 48%;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 15px;
+  box-sizing: border-box;
+}
+
+.zone-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.controls label {
+  margin-right: 10px;
+  font-size: 0.9rem;
+}
+.note {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+/* ===================== CAMERA ===================== */
+.cam-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.cam-row video {
+  width: 49%;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  background: #000;
+  height: 500px;
+  object-fit: cover;
+}
+
+/* ===================== KẾT QUẢ ===================== */
+.result-panel {
+  border-top: 1px solid #ddd;
+  padding-top: 10px;
+}
+
+.result-panel h3 {
+  margin: 8px 0;
+  color: #004aad;
+}
+
+.result-row {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.label {
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+.badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: #eef;
+}
+
+.badge.ok {
+  background: #d1fae5;
+  color: #065f46;
+}
+.badge.warn {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.input-group {
+  margin-top: 8px;
+}
+
+.input-group input {
+  padding: 6px 8px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  width: 220px;
+}
+
+.actions {
+  text-align: right;
+  margin-top: 10px;
+}
+
+.btn {
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+.btn:hover { background: #1d4ed8; }
+.btn.small { padding: 5px 10px; font-size: 0.85rem; }
+
+/* ===================== FOOTER ===================== */
+footer {
+  text-align: center;
+  font-size: 0.85rem;
+  color: #777;
+  padding: 10px;
+  border-top: 1px solid #ddd;
+}
+
+/* ===================== RESPONSIVE ===================== */
+@media (max-width: 900px) {
+  .main-grid {
+    flex-direction: column;
+  }
+  .side {
+    width: 100%;
+  }
+  .menu-btn {
+    margin-right: 10px;
+  }
+  #sidebar {
+    width: 200px;
+  }
+}
+/* ===== Nút đăng xuất ở góc phải header ===== */
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #f9fafb;
+  border-bottom: 1px solid #ddd;
+  padding: 10px 20px;
+}
+
+.user-controls {
+  display: flex;
+  align-items: center;
+}
+
+.logout-btn {
+  background: #ef4444;
+  color: #fff;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.25s ease;
+}
+
+.logout-btn:hover {
+  background: #dc2626;
+}
