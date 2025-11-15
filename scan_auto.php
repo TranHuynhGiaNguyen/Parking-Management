@@ -1,132 +1,130 @@
+<?php
+session_start();
+include 'db_connect.php';
 
+// --- Kiểm tra đăng nhập ---
+if (!isset($_SESSION['user'])) {
+  header('Location: index.php');
+  exit;
+}
+
+// --- Chỉ cho phép bảo vệ truy cập ---
+if ($_SESSION['user']['role'] !== 'baove') {
+  header('Location: index.php');
+  exit;
+}
+
+// --- Lấy thông tin người dùng hiện tại (nếu cần hiển thị tên chẳng hạn) ---
+$current_user = $_SESSION['user'];
+?>
 <!doctype html>
 <html lang="vi">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Tự quét biển số & phân loại xe (4 camera)</title>
+  <title>Trạm quét tự động (2 camera)</title>
   <link rel="stylesheet" href="assets/css/scan_auto.css">
-  <!-- TensorFlow.js (giữ đường dẫn của bạn nếu có local tfjs ) -->
+  <!-- TensorFlow.js -->
   <script src="tfjs/tf.min.js"></script>
 </head>
 <body>
- <header class="topbar">
-  <div class="menu-btn" id="menuToggle">
-    <span></span><span></span><span></span>
+  <header class="topbar">
+  <div class="menu-btn" id="menuBtn">
+    <span></span>
+    <span></span>
+    <span></span>
   </div>
+
   <div class="header-title">
-    <h1>🚗 Parking Management — ANPR Scanner (4 camera)</h1>
-    <p>Tự quét biển số và phân loại xe</p>
+      <h1>🚗 Trạm quét tự động</h1>
+      <p>2 camera song song • RFID • Nhận diện biển số</p>
+    </div>
+    <div class="user-controls">
+      <form action="logout.php" method="post" style="display:inline;">
+        <button type="submit" class="logout-btn">Đăng xuất</button>
+      </form>
+    </div>
+  </header>
+
+  <nav id="sidebar">
+    <ul>
+      <li><a href="scan_auto.php">🎥 Trực tiếp</a></li>
+      <li><a href="vehicle_history.php">🧾 Danh sách xe ra/vào</a></li>
+    </ul>
+  </nav>
+
+  <div class="content">
+    <!-- HUD trắng: trạng thái bãi + config -->
+    <div class="slot-hud">
+      <div id="slotline"><span class="small">Đang tải trạng thái...</span></div>
+      <div class="small" id="cfgline" style="margin-left:auto">Đang tải cấu hình...</div>
+    </div>
+
+    <div class="wrap">
+      <section class="panel">
+        <h2>Trung tâm quét</h2>
+        <div class="panel-body">
+          <!-- 2 camera song song -->
+          <div class="cams">
+            <video id="cam1" autoplay playsinline></video>
+            <video id="cam2" autoplay playsinline></video>
+          </div>
+
+          <!-- Kết quả AI + thông số -->
+          <div class="result-row" style="margin-top:12px">
+            <div><span class="badge">Biển số:</span> <span id="plateOut" class="badge">—</span></div>
+            <div><span class="badge">Độ tin cậy:</span> <span id="confOut" class="badge">—</span></div>
+            <div><span class="badge">Loại xe:</span> <span id="vehOut" class="badge">—</span></div>
+          </div>
+
+          <!-- Cấu hình auto-scan -->
+          <div class="row2" style="margin-top:8px">
+            <label class="small">Chu kỳ (ms)
+              <input id="period" type="number" value="1000" min="300">
+            </label>
+            <label class="small">Ngưỡng tin cậy
+              <input id="thresh" type="number" step="0.01" min="0" max="1" value="0.8">
+            </label>
+            <div style="display:flex;gap:8px;align-items:flex-end">
+              <label class="small" style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="auto" checked> Tự động</label>
+              <button id="toggle" class="btn small" type="button">Tạm dừng</button>
+            </div>
+          </div>
+
+          <!-- Nhập RFID + chỉnh tay -->
+          <div class="row" style="margin-top:12px">
+            <label class="small">RFID (quét và nhấn Enter)
+              <input id="uidInput" type="text" placeholder="UID RFID">
+            </label>
+            <label class="small">Biển số (chỉnh tay)
+              <input id="plateManual" type="text" placeholder="VD: 59A-123.45">
+            </label>
+            <label class="small">Sửa loại xe
+              <select id="overrideType">
+                <option value="">Loại tự động</option>
+                <option value="Car">Car</option>
+                <option value="Motorcycle">Motorcycle</option>
+              </select>
+            </label>
+          </div>
+
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <button id="accept" class="btn" type="button">Chấp nhận</button>
+            <div id="msg" class="small" style="align-self:center"></div>
+          </div>
+        </div>
+      </section>
+
+      <footer>© 2025 Parking Management System</footer>
+    </div>
   </div>
-   <div class="user-controls">
-    <form action="logout.php" method="post" style="display:inline;">
-      <button type="submit" class="logout-btn">Đăng xuất</button>
-    </form>
-  </div>
-</header>
 
-<!-- Sidebar -->
-<nav id="sidebar">
-  <ul>
-    <li><a href="scan_auto.php">🎥 Trực tiếp (4 camera)</a></li>
-    <li><a href="#" data-page="history">🧾 Danh sách xe ra/vào</a></li>
-    <li><a href="#" data-page="revenue">💰 Quản lý doanh thu</a></li>
-    <li><a href="#" data-page="settings">⚙️ Cài đặt hệ thống</a></li>
-  </ul>
-</nav>
-
-  <main class="main-grid">
-    <!-- Bên trái -->
-    <section class="side" id="sideLeft">
-      <div class="zone-header">
-        <strong>Left Zone</strong>
-        <div class="controls">
-          <label><input type="checkbox" id="auto" checked> Tự động</label>
-          <label>Chu kỳ(ms):
-            <input id="period" type="number" value="1000" min="300" class="small">
-          </label>
-          <label>Ngưỡng:
-            <input id="thresh" type="number" step="0.01" min="0" max="1" value="0.8" class="small">
-          </label>
-          <button id="toggle" class="btn small">Tạm dừng</button>
-        </div>
-      </div>
-
-      <div class="cam-row">
-        <video id="cam1" autoplay playsinline></video>
-        <video id="cam2" autoplay playsinline></video>
-      </div>
-
-      <div class="result-panel" aria-labelledby="leftResult">
-        <h3 id="leftResult">Kết quả bên trái</h3>
-        <div class="result-row">
-          <div><span class="label">Biển số:</span> <span id="plateL" class="badge">—</span></div>
-          <div><span class="label">Độ tin cậy:</span> <span id="confL" class="badge">—</span></div>
-          <div><span class="label">Loại xe:</span> <span id="vehL" class="badge">—</span></div>
-        </div>
-
-        <div class="input-group">
-          <label class="label">Chỉnh tay:</label>
-          <input id="plateManualL" type="text" placeholder="VD: 59A-123.45">
-        </div>
-
-        <div class="input-group">
-          <label class="label">RFID (trái):</label>
-          <input id="uidInputL" type="text" placeholder="Quét thẻ và nhấn Enter">
-        </div>
-
-        <div class="actions">
-          <button id="acceptL" class="btn">Chấp nhận</button>
-        </div>
-      </div>
-    </section>
-
-    <!-- Bên phải -->
-    <section class="side" id="sideRight">
-      <div class="zone-header">
-        <strong>Right Zone</strong>
-        <div class="note">Nền trắng — không hiển thị preview</div>
-      </div>
-
-      <div class="cam-row">
-        <video id="cam3" autoplay playsinline></video>
-        <video id="cam4" autoplay playsinline></video>
-      </div>
-
-      <div class="result-panel" aria-labelledby="rightResult">
-        <h3 id="rightResult">Kết quả bên phải</h3>
-        <div class="result-row">
-          <div><span class="label">Biển số:</span> <span id="plateR" class="badge">—</span></div>
-          <div><span class="label">Độ tin cậy:</span> <span id="confR" class="badge">—</span></div>
-          <div><span class="label">Loại xe:</span> <span id="vehR" class="badge">—</span></div>
-        </div>
-
-        <div class="input-group">
-          <label class="label">Chỉnh tay:</label>
-          <input id="plateManualR" type="text" placeholder="VD: 60B-789.01">
-        </div>
-
-        <div class="input-group">
-          <label class="label">RFID (phải):</label>
-          <input id="uidInputR" type="text" placeholder="Quét thẻ và nhấn Enter">
-        </div>
-
-        <div class="actions">
-          <button id="acceptR" class="btn">Chấp nhận</button>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <footer>© 2025 Parking Management System</footer>
-
-  <!-- ====== JS: kết hợp logic gốc của bạn, mở rộng cho 4 camera ====== -->
 <script>
-/* ----------------- Model AI (giữ nguyên từ bạn) ----------------- */
-let vehicleModel = null, vehicleLabels = ["car","motorbike","other"];
-const BASE = location.pathname.replace(/[^/]+$/, '');
-const MODEL_URL = BASE + 'models/vehicle/model.json';
-const META_URL  = BASE + 'models/vehicle/metadata.json';
+/* ====== Model AI (giữ nguyên logic) ====== */
+let vehicleModel=null, vehicleLabels=["car","motorbike","other"];
+const BASE=location.pathname.replace(/[^/]+$/,'');
+const MODEL_URL=BASE+'models/vehicle/model.json';
+const META_URL =BASE+'models/vehicle/metadata.json';
 
 (async()=>{
   try{
@@ -137,232 +135,219 @@ const META_URL  = BASE + 'models/vehicle/metadata.json';
       const m = r.ok ? await r.json() : null;
       if(m?.labels?.length) vehicleLabels = m.labels;
     }catch{}
-    console.log('Model OK', MODEL_URL, vehicleLabels);
-  }catch(e){ console.error('Model FAIL', e); }
+    console.log('Model ready');
+  }catch(e){ console.error('Model load fail', e); }
 })();
 
 async function classifyVehicleFromCanvas(canvasEl){
   if(!vehicleModel) return null;
   const t=tf.tidy(()=>tf.browser.fromPixels(canvasEl)
-      .resizeBilinear([224,224]).toFloat().div(255).expandDims());
+    .resizeBilinear([224,224]).toFloat().div(255).expandDims());
   const out = vehicleModel.predict(t);
   const logits = Array.isArray(out)? out[0]: out;
-  const arr = await logits.data();
-  tf.dispose([t,out,logits]);
+  const arr = await logits.data(); tf.dispose([t,out,logits]);
   let idx=0,max=arr[0]??0; for(let i=1;i<arr.length;i++) if(arr[i]>max){max=arr[i]; idx=i;}
   return {label: vehicleLabels[idx]||'other', score:max};
 }
 
-/* ----------------- Các phần tử DOM ----------------- */
-const vidEls = [
-  document.getElementById('cam1'),
-  document.getElementById('cam2'),
-  document.getElementById('cam3'),
-  document.getElementById('cam4')
-];
+/* ====== DOM refs ====== */
+const cam1=document.getElementById('cam1');
+const cam2=document.getElementById('cam2');
+const plateOut=document.getElementById('plateOut');
+const confOut =document.getElementById('confOut');
+const vehOut  =document.getElementById('vehOut');
 
-const plateL = document.getElementById('plateL');
-const confL  = document.getElementById('confL');
-const vehL   = document.getElementById('vehL');
-const plateManualL = document.getElementById('plateManualL');
-const uidInputL = document.getElementById('uidInputL');
-const acceptL = document.getElementById('acceptL');
-
-const plateR = document.getElementById('plateR');
-const confR  = document.getElementById('confR');
-const vehR   = document.getElementById('vehR');
-const plateManualR = document.getElementById('plateManualR');
-const uidInputR = document.getElementById('uidInputR');
-const acceptR = document.getElementById('acceptR');
-
-const autoChk=document.getElementById('auto');
 const periodInp=document.getElementById('period');
 const threshInp=document.getElementById('thresh');
+const autoChk  =document.getElementById('auto');
 const toggleBtn=document.getElementById('toggle');
 
-/* ----------------- Trạng thái quét nội bộ ----------------- */
-let timer=null;
-let running=true;
-let busy = [false,false,false,false];
-let vehicleTypeForCam = ['','','',''];
+const uidInput =document.getElementById('uidInput');
+const plateManual=document.getElementById('plateManual');
+const overrideType=document.getElementById('overrideType');
+const acceptBtn=document.getElementById('accept');
+const msgEl    =document.getElementById('msg');
 
-/* ----------------- Khởi tạo camera ----------------- */
-async function initAllCams(){
+const slotline =document.getElementById('slotline');
+const cfgline  =document.getElementById('cfgline');
+
+/* ====== Camera ====== */
+async function initCams(){
   try{
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const cams = devices.filter(d => d.kind === 'videoinput');
-    if(cams.length === 0){
-      console.warn('Không tìm thấy camera nào');
-      return;
-    }
-    for(let i=0;i<vidEls.length;i++){
-      const device = cams[i] || cams[i % cams.length];
+    const devices=await navigator.mediaDevices.enumerateDevices();
+    const cams=devices.filter(d=>d.kind==='videoinput');
+    if(cams.length===0){ console.warn('Không có camera'); return; }
+    // mở 2 camera, nếu thiếu thì lặp lại camera 0
+    for(const [vid, idx] of [[cam1,0],[cam2,1]]){
+      const dev=cams[idx] || cams[0];
       try{
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { deviceId: device.deviceId },
-          audio: false
-        });
-        vidEls[i].srcObject = stream;
+        const stream=await navigator.mediaDevices.getUserMedia({video:{deviceId:dev.deviceId}, audio:false});
+        vid.srcObject=stream;
+      }catch(e){ console.warn('Không mở camera', idx, e); }
+    }
+  }catch(e){ console.error('enumerate devices', e); }
+}
+function grabCanvas(videoEl){
+  const w=videoEl.videoWidth||640, h=videoEl.videoHeight||360;
+  const c=document.createElement('canvas'); c.width=w; c.height=h;
+  c.getContext('2d').drawImage(videoEl,0,0,w,h); return c;
+}
+function canvasToBlob(c,q=0.8){ return new Promise(res=>c.toBlob(res,'image/jpeg',q)); }
+
+/* ====== Nhận diện kết hợp 2 cam ====== */
+let running=true, timer=null, busy=false, lastVehType='';
+async function detectOnce(){
+  if(busy||!running) return; busy=true;
+  try{
+    // gửi cam1 tới anpr_proxy trước, fallback cam2 nếu cam1 fail
+    const cand = [];
+    for (const vid of [cam1, cam2]) {
+      if(!vid || vid.readyState<2) continue;
+      const canvas = grabCanvas(vid);
+      const blob   = await canvasToBlob(canvas, 0.8);
+      const fd = new FormData(); fd.append('image', blob, 'frame.jpg');
+      try{
+        const res = await fetch('anpr_proxy.php', {method:'POST', body:fd});
+        if(!res.ok) throw new Error('Proxy '+res.status);
+        const j = await res.json();
+        const plate=(j.plate||'').toString().toUpperCase().trim();
+        const conf = typeof j.confidence==='number' ? j.confidence : parseFloat(j.confidence)||NaN;
+        const veh  = await classifyVehicleFromCanvas(canvas);
+        const vtype = veh && veh.score>=0.7 ? veh.label : '';
+        cand.push({plate, conf, vtype});
       }catch(e){
-        console.warn('Không thể mở camera index', i, e);
+        console.warn('ANPR lỗi cho 1 cam', e);
       }
     }
-  }catch(e){
-    console.error('Lỗi enumerate devices', e);
-  }
+    if (cand.length) {
+      // Chọn kết quả có độ tin cậy cao nhất
+      cand.sort((a,b)=> (b.conf||0) - (a.conf||0));
+      const best = cand[0];
+      plateOut.textContent = best.plate || '—';
+      confOut.textContent  = isFinite(best.conf) ? best.conf.toFixed(2) : '—';
+      vehOut.textContent   = best.vtype || '—';
+      plateOut.className = 'badge ' + ((best.plate && isFinite(best.conf) && best.conf >= parseFloat(threshInp.value||'0.8')) ? 'ok':'warn');
+      lastVehType = best.vtype || lastVehType || '';
+      // auto điền vào input để sửa tay nếu muốn
+      if(best.plate && isFinite(best.conf) && best.conf >= parseFloat(threshInp.value||'0.8')){
+        plateManual.value = best.plate;
+      }
+    }
+  }catch(e){ console.error('detectOnce', e); }
+  finally{ busy=false; }
+}
+function startAuto(){ stopAuto(); const p=Math.max(300,parseInt(periodInp.value||'1000',10)); timer=setInterval(detectOnce, p); }
+function stopAuto(){ if(timer){ clearInterval(timer); timer=null; } }
+autoChk.addEventListener('change', ()=> autoChk.checked?startAuto():stopAuto());
+toggleBtn.addEventListener('click', ()=>{ running=!running; toggleBtn.textContent = running ? 'Tạm dừng' : 'Tiếp tục'; });
+
+/* ====== Gửi RFID -> save_record.php (giữ nguyên backend) ====== */
+let lock=false, lastUID='', lastTs=0;
+async function submitRFID(uidRaw){
+  const raw = (uidRaw||'').toUpperCase().replace(/[^0-9A-F]/g,'');
+  if(raw.length<4) return;
+  const now=Date.now(); if(raw===lastUID && now-lastTs<1000) return; lastUID=raw; lastTs=now; if(lock) return; lock=true;
+
+ // ==== CHUẨN HÓA KIỂU XE GỬI LÊN BACKEND ====
+const autoTypeRaw = (lastVehType || '').toLowerCase();
+let vtype = document.getElementById('overrideType').value || '';
+
+// normalize frontend -> gửi "Car" hoặc "Motorcycle"
+if (!vtype) {
+  if (autoTypeRaw.includes('car')) vtype = 'Car';
+  else if (autoTypeRaw.includes('motor') || autoTypeRaw.includes('bike')) vtype = 'Motorcycle';
+  else vtype = 'Motorcycle'; // mặc định an toàn
 }
 
-/* ----------------- Capture từ video ----------------- */
-function captureCanvasFromVideo(videoEl){
-  const w = videoEl.videoWidth || 640;
-  const h = videoEl.videoHeight || 360;
-  const c = document.createElement('canvas');
-  c.width = w; c.height = h;
-  const ctx = c.getContext('2d');
-  ctx.drawImage(videoEl, 0, 0, w, h);
-  return c;
-}
-function canvasToBlob(canvas, quality=0.85){
-  return new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
-}
-
-/* ----------------- Quét từng camera ----------------- */
-async function detectOnceForCam(camIndex){
-  if(busy[camIndex] || !running) return;
-  const vid = vidEls[camIndex];
-  if(!vid || !(vid.readyState >= 2)) return;
-  busy[camIndex] = true;
+  
+  const fd=new FormData();
+  fd.append('vehicle_type', vtype);
+  fd.append('uid', raw);
+  fd.append('plate', (plateManual.value || plateOut.textContent || '').trim());
+  fd.append('zone', 'center'); // giữ tham số cũ nếu backend có dùng
 
   try{
-    const canvas = captureCanvasFromVideo(vid);
-    const blob = await canvasToBlob(canvas, 0.85);
-    if(!blob){ busy[camIndex]=false; return; }
+    const r = await fetch('save_record.php', {method:'POST', body:fd});
+    const j = await r.json().catch(()=>({}));
 
-    const fd = new FormData();
-    fd.append('image', blob, 'frame.jpg');
+  // Nếu backend báo sai xe
+  if (j.ok === false && j.action === "checkout_denied") {
+      msgEl.textContent = "❌ " + (j.detail?.message || "Xe ra không đúng!");
+      msgEl.style.color = "red";
+      return;
+  }
 
-    const res = await fetch('anpr_proxy.php', { method: 'POST', body: fd });
-    if(!res.ok) throw new Error('Proxy lỗi '+res.status);
-    const json = await res.json();
+  // Nếu lỗi chung
+  if (j.ok === false) {
+      msgEl.textContent = "❌ " + (j.error || "Lỗi không xác định");
+      msgEl.style.color = "red";
+      return;
+  }
 
-    const plate = (json.plate || '').toString().toUpperCase().trim();
-    const conf = typeof json.confidence === 'number' ? json.confidence : parseFloat(json.confidence) || NaN;
-
-    const veh = await classifyVehicleFromCanvas(canvas);
-    const vehicleType = (veh && veh.score>=0.7) ? veh.label : '';
-
-    // Gán kết quả theo khu vực
-    if(camIndex <= 1){
-      plateL.textContent = plate || '—';
-      confL.textContent = isFinite(conf) ? conf.toFixed(2) : '—';
-      vehL.textContent = vehicleType || '—';
-      if(plate && isFinite(conf) && conf >= parseFloat(threshInp.value || '0.8')){
-        plateManualL.value = plate;
-        plateL.className = 'badge ok';
-      }else{
-        plateL.className = 'badge warn';
-      }
-      vehicleTypeForCam[camIndex] = vehicleType;
-    } else {
-      plateR.textContent = plate || '—';
-      confR.textContent = isFinite(conf) ? conf.toFixed(2) : '—';
-      vehR.textContent = vehicleType || '—';
-      if(plate && isFinite(conf) && conf >= parseFloat(threshInp.value || '0.8')){
-        plateManualR.value = plate;
-        plateR.className = 'badge ok';
-      }else{
-        plateR.className = 'badge warn';
-      }
-      vehicleTypeForCam[camIndex] = vehicleType;
-    }
+  // Thành công (vào hoặc ra)
+  msgEl.textContent = j.message || "✔ Thành công";
+  msgEl.style.color = "green";
+    await refreshSlots();
   }catch(e){
-    console.error('Lỗi detect cam', camIndex, e);
+    msgEl.textContent = '❌ Lỗi gửi save_record.php';
   }finally{
-    busy[camIndex] = false;
+    setTimeout(()=> lock=false, 900);
   }
 }
 
-/* ----------------- Auto scan ----------------- */
-function detectAllOnce(){ for(let i=0;i<vidEls.length;i++) detectOnceForCam(i); }
-function startAuto(){ stopAuto(); const p=Math.max(300,parseInt(periodInp.value||'1000',10)); timer=setInterval(detectAllOnce,p); }
-function stopAuto(){ if(timer){ clearInterval(timer); timer=null; } }
+uidInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ submitRFID(uidInput.value); uidInput.value=''; }});
+acceptBtn.addEventListener('click', ()=> submitRFID(uidInput.value));
 
-/* ----------------- Event listeners ----------------- */
-autoChk.addEventListener('change', ()=> autoChk.checked ? startAuto() : stopAuto());
-toggleBtn.addEventListener('click', ()=> { running = !running; toggleBtn.textContent = running ? 'Tạm dừng' : 'Tiếp tục'; });
+/* ====== HUD: trạng thái bãi + cấu hình ====== */
+async function refreshSlots(){
+  try{
+    const r=await fetch('get_slots.php',{cache:'no-store'});
+    const d=await r.json();
+    if(d.ok){
+      const warn=(d.car.is_full||d.motorcycle.is_full)?'warn':'ok';
+      slotline.innerHTML = `<span class="${warn}">${warn==='warn'?'⚠️':''}</span>
+        Ô tô: <b>${d.car.available}/${d.car.max}</b> | Xe máy: <b>${d.motorcycle.available}/${d.motorcycle.max}</b>`;
+    } else {
+      slotline.innerHTML = '<span class="small">Không lấy được trạng thái</span>';
+    }
+  }catch{ slotline.innerHTML = '<span class="small">Mất kết nối...</span>'; }
+}
+async function loadConfig(){
+  try{
+    const r=await fetch('get_config.php',{cache:'no-store'}); const d=await r.json();
+    if(d.ok && d.config){
+      const m = d.config.scan_mode || 'both';
+      const feeCar = d.config.fee_car_per_min ?? '-';
+      const feeMc  = d.config.fee_mc_per_min ?? '-';
+      cfgline.textContent = `Chế độ: ${m==='in'?'Vào':m==='out'?'Ra':'Vào & Ra'} • Phí: Car ${feeCar}/phút | MC ${feeMc}/phút`;
+    }
+  }catch{}
+}
 
-acceptL.addEventListener('click', ()=> alert('Chấp nhận biển (trái): ' + (plateManualL.value || '(rỗng)')));
-acceptR.addEventListener('click', ()=> alert('Chấp nhận biển (phải): ' + (plateManualR.value || '(rỗng)')));
+/* ====== Boot ====== */
+(async function(){
+  await initCams();
+  detectOnce(); if(autoChk.checked) startAuto();
+  refreshSlots(); loadConfig();
+  setInterval(refreshSlots, 2000);
+  setInterval(loadConfig, 5000);
+})();
 
-/* ----------------- RFID GỬI VỚI ZONE + VEHICLE_TYPE ----------------- */
-let lockL=false, lastUIDL='', lastTsL=0;
-uidInputL.addEventListener('keydown', async (e)=>{
-  if(e.key !== 'Enter' || lockL) return;
-  const raw = uidInputL.value.toUpperCase().replace(/[^0-9A-F]/g,'');
-  uidInputL.value = ''; if(raw.length < 4) return;
-  const now = Date.now(); if(raw === lastUIDL && now - lastTsL < 1000) return;
-  lastUIDL = raw; lastTsL = now; lockL = true;
-
-  const fd = new FormData();
-  fd.append('uid', raw);
-  fd.append('plate', (plateManualL.value || plateL.textContent || '').trim());
-  fd.append('vehicle_type', vehicleTypeForCam[0] || vehicleTypeForCam[1] || 'car');
-  fd.append('zone', 'left'); // 🆕 xác định khu vực
-
-  try{ await fetch('save_record.php', { method:'POST', body: fd }); console.log('RFID trái:', raw); }
-  finally{ setTimeout(()=> lockL=false, 1000); }
-});
-
-let lockR=false, lastUIDR='', lastTsR=0;
-uidInputR.addEventListener('keydown', async (e)=>{
-  if(e.key !== 'Enter' || lockR) return;
-  const raw = uidInputR.value.toUpperCase().replace(/[^0-9A-F]/g,'');
-  uidInputR.value = ''; if(raw.length < 4) return;
-  const now = Date.now(); if(raw === lastUIDR && now - lastTsR < 1000) return;
-  lastUIDR = raw; lastTsR = now; lockR = true;
-
-  const fd = new FormData();
-  fd.append('uid', raw);
-  fd.append('plate', (plateManualR.value || plateR.textContent || '').trim());
-  fd.append('vehicle_type', vehicleTypeForCam[2] || vehicleTypeForCam[3] || 'car');
-  fd.append('zone', 'right');
-
-  try{ await fetch('save_record.php', { method:'POST', body: fd }); console.log('RFID phải:', raw); }
-  finally{ setTimeout(()=> lockR=false, 1000); }
-});
-
-/* ----------------- Khi đóng trang ----------------- */
+/* ====== Trước khi rời trang: tắt stream ====== */
 window.addEventListener('beforeunload', ()=>{
-  vidEls.forEach(v=>{
-    try{ if(v && v.srcObject) v.srcObject.getTracks().forEach(t=>t.stop()); }catch(e){}
-  });
+  [cam1,cam2].forEach(v=>{ try{ if(v && v.srcObject) v.srcObject.getTracks().forEach(t=>t.stop()); }catch(e){} });
 });
 
-/* ----------------- Menu toggle ----------------- */
-const menuToggle = document.getElementById('menuToggle');
-const sidebar = document.getElementById('sidebar');
-menuToggle.addEventListener('click', () => sidebar.classList.toggle('active'));
-
-document.querySelectorAll('#sidebar a[data-page]').forEach(a => {
-  a.addEventListener('click', (e) => {
-    e.preventDefault();
-    sidebar.classList.remove('active');
-    const page = a.getAttribute('data-page');
-    showPage(page);
-  });
+/* ====== Sidebar demo ====== */
+document.querySelectorAll('#sidebar a[data-page]').forEach(a=>{
+  a.addEventListener('click',(e)=>{ e.preventDefault(); alert('Tính năng đang phát triển'); });
 });
+ const sidebar = document.getElementById('sidebar');
+ const menuBtn = document.getElementById('menuBtn');
 
-function showPage(page) {
-  switch(page) {
-    case 'camera': alert('🎥 Trực tiếp (4 camera)'); break;
-    case 'history': alert('📋 Danh sách xe ra/vào'); break;
-    case 'revenue': alert('💰 Quản lý doanh thu'); break;
-    case 'settings': alert('⚙️ Cài đặt hệ thống'); break;
-  }
-}
-
-/* ----------------- Khởi tạo ----------------- */
-initAllCams().then(()=>{ if(autoChk.checked) startAuto(); });
+  menuBtn.addEventListener('click', () => {
+    sidebar.classList.toggle('active');
+  });
 </script>
 </body>
 </html>

@@ -1,0 +1,10 @@
+10:45:25 | scan_mode=in
+10:45:56 | scan_mode=out
+10:49:16 | scan_mode=in
+10:51:57 | scan_mode=out
+10:53:06 | scan_mode=both
+10:58:05 | scan_mode=in
+10:58:45 | scan_mode=out
+10:59:18 | scan_mode=both
+11:05:27 | scan_mode=both
+11:12:21 | scan_mode=both

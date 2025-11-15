@@ -1,78 +1,77 @@
-/* ===================== Tổng thể ===================== */
-body {
-  font-family: system-ui, Arial, sans-serif;
-  background: #fff;
-  color: #111;
-  margin: 0;
-  padding: 0;
-  overflow-x: hidden;
+/* ===================== BIẾN MÀU ===================== */
+:root {
+  --bg: #f5f6fa;          /* nền tổng thể sáng hơn nhẹ */
+  --fg: #1f2937;          /* chữ chính xanh đen */
+  --muted: #6b7280;       /* chữ phụ xám nhạt */
+  --panel: #ffffff;       /* nền khung trắng */
+  --border: #e5e7eb;      /* viền xám sáng */
+  --badge: #f0f4ff;       /* màu badge nhạt xanh */
+  --ok: #16a34a;          /* xanh lá */
+  --warn: #dc2626;        /* đỏ cảnh báo */
+  --btn: #2563eb;         /* xanh lam chủ đạo */
+  --btnfg: #ffffff;       /* chữ trên nút */
 }
 
-/* ===================== HEADER + MENU ===================== */
+/* ===================== RESET & BODY ===================== */
+* {
+  box-sizing: border-box;
+}
+body {
+  background: var(--bg) !important;
+  color: var(--fg) !important;
+  margin: 0;
+  font-family: "Segoe UI", system-ui, sans-serif;
+}
+
+/* ===================== THANH TRÊN (TOPBAR) ===================== */
 .topbar {
+  background: #0f172a; /* xanh đậm giống admin-header */
+  border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  background: #f9fafb;
-  border-bottom: 1px solid #ddd;
-  padding: 10px 15px;
-  position: relative;
-  z-index: 1001;
-}
-
-.menu-btn {
-  width: 28px;
-  height: 22px;
-  display: flex;
-  flex-direction: column;
   justify-content: space-between;
-  cursor: pointer;
-  margin-right: 15px;
+  padding: 12px 16px;
+  color: #fff;
 }
-
-.menu-btn span {
-  display: block;
-  height: 3px;
-  background: #333;
-  border-radius: 2px;
-  transition: 0.3s;
-}
-
-/* Nút xoay khi sidebar mở */
-#sidebar.active ~ .topbar .menu-btn span:nth-child(1) {
-  transform: translateY(9px) rotate(45deg);
-}
-#sidebar.active ~ .topbar .menu-btn span:nth-child(2) {
-  opacity: 0;
-}
-#sidebar.active ~ .topbar .menu-btn span:nth-child(3) {
-  transform: translateY(-9px) rotate(-45deg);
-}
-
 .header-title h1 {
   margin: 0;
-  font-size: 1.4rem;
+  font-size: 18px;
+  color: #fff;
 }
 .header-title p {
-  color: #555;
   margin: 2px 0 0;
-  font-size: 0.9rem;
+  color: #cbd5e1;
+  font-size: 13px;
+}
+.logout-btn {
+  background: #ef4444;
+  border: none;
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.logout-btn:hover {
+  background: #dc2626;
 }
 
 /* ===================== SIDEBAR ===================== */
 #sidebar {
   position: fixed;
-  top: 0;
-  left: -260px; /* Ẩn mặc định */
-  width: 260px;
-  height: 100vh;
-  background: #f3f4f6;
-  box-shadow: 2px 0 8px rgba(0,0,0,0.15);
+  left: -240px; /* ❗ Ẩn mặc định */
+  top: 56px;
+  bottom: 0;
+  width: 220px;
+  background: #1e293b; /* xanh xám đậm như admin sidebar */
+  color: #fff;
+  border-right: 1px solid #0f172a;
+  padding: 8px 0;
+  overflow: auto;
   transition: left 0.3s ease;
-  padding-top: 70px; /* tránh header */
-  z-index: 1000;
+  z-index: 100;
 }
 
+/* Khi sidebar được bật */
 #sidebar.active {
   left: 0;
 }
@@ -82,206 +81,199 @@ body {
   margin: 0;
   padding: 0;
 }
-
-#sidebar li {
-  margin: 4px 0; /* thêm chút khoảng cách giữa các mục */
-}
-
-#sidebar a {
+#sidebar li a {
   display: block;
-  padding: 16px 24px; /* dãn cao hơn và lùi text vào trong một chút */
-  color: #111;
+  padding: 10px 14px;
+  color: #cbd5e1;
   text-decoration: none;
-  font-size: 1rem;
-  font-weight: 500;
-  border-left: 4px solid transparent;
-  transition: background 0.25s, border-color 0.25s;
-}
-
-#sidebar a:hover {
-  background: #e0e7ff;
-  border-left: 4px solid #3b82f6; /* màu xanh viền khi hover */
-  color: #1e3a8a;
-}
-
-/* Hiệu ứng khi sidebar đang mở */
-#sidebar.active {
-  left: 0;
-}
-
-/* ===================== MAIN CONTENT ===================== */
-.main-grid {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  padding: 20px;
-  gap: 20px;
-  transition: margin-left 0.3s ease;
-}
-
-#sidebar.active ~ main {
-  margin-left: 240px;
-}
-
-/* ===================== KHUNG BÊN ===================== */
-.side {
-  width: 48%;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 15px;
-  box-sizing: border-box;
-}
-
-.zone-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.controls label {
-  margin-right: 10px;
-  font-size: 0.9rem;
-}
-.note {
-  color: #666;
-  font-size: 0.9rem;
-}
-
-/* ===================== CAMERA ===================== */
-.cam-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  margin: 12px 0;
-}
-
-.cam-row video {
-  width: 49%;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  background: #000;
-  height: 500px;
-  object-fit: cover;
-}
-
-/* ===================== KẾT QUẢ ===================== */
-.result-panel {
-  border-top: 1px solid #ddd;
-  padding-top: 10px;
-}
-
-.result-panel h3 {
-  margin: 8px 0;
-  color: #004aad;
-}
-
-.result-row {
-  display: flex;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  margin-bottom: 10px;
-}
-
-.label {
-  font-weight: 600;
-  margin-right: 4px;
-}
-
-.badge {
-  display: inline-block;
-  padding: 3px 8px;
   border-radius: 6px;
-  background: #eef;
+  margin: 2px 10px;
+  transition: all 0.3s ease;
 }
-
-.badge.ok {
-  background: #d1fae5;
-  color: #065f46;
-}
-.badge.warn {
-  background: #fee2e2;
-  color: #991b1b;
-}
-
-.input-group {
-  margin-top: 8px;
-}
-
-.input-group input {
-  padding: 6px 8px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  width: 220px;
-}
-
-.actions {
-  text-align: right;
-  margin-top: 10px;
-}
-
-.btn {
+#sidebar li a:hover,
+#sidebar li a.active {
   background: #2563eb;
   color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 8px 14px;
-  cursor: pointer;
+  transform: translateX(4px);
 }
 
-.btn:hover { background: #1d4ed8; }
-.btn.small { padding: 5px 10px; font-size: 0.85rem; }
+/* ===================== NÚT MENU (HAMBURGER) ===================== */
+.menu-btn {
+  width: 28px;
+  height: 22px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  cursor: pointer;
+  margin-right: 15px;
+}
+.menu-btn span {
+  display: block;
+  height: 3px;
+  background: #fff; /* đổi trắng vì header tối */
+  border-radius: 2px;
+  transition: 0.3s;
+}
 
-/* ===================== FOOTER ===================== */
-footer {
-  text-align: center;
-  font-size: 0.85rem;
-  color: #777;
+/* ===================== NỘI DUNG ===================== */
+.content {
+  margin-left: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  transition: margin-left 0.3s ease;
+  background: var(--bg);
+}
+
+/* Khi sidebar mở, đẩy nội dung qua */
+#sidebar.active ~ .content {
+  margin-left: 220px;
+}
+
+/* ===================== PHẦN HUD, PANEL, ETC ===================== */
+.slot-hud {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #fff;
+  border-bottom: 1px solid var(--border);
+  padding: 10px 16px;
+  font-size: 14px;
+}
+.slot-hud .ok {
+  color: var(--ok);
+}
+.slot-hud .warn {
+  color: var(--warn);
+}
+
+.wrap {
+  max-width: 1100px;
+  margin: 16px auto;
+  padding: 0 16px;
+  width: 100%;
+}
+
+.panel {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.panel h2 {
+  margin: 0;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+  font-size: 16px;
+  color: var(--fg);
+}
+.panel-body {
+  padding: 14px;
+}
+
+.cams {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+video {
+  width: 100%;
+  aspect-ratio: 16/9;
+  background: #000;
+  border-radius: 8px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+}
+.row2 {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 10px;
+}
+
+input,
+select,
+button {
+  width: 100%;
   padding: 10px;
-  border-top: 1px solid #ddd;
+  border: none;
+  border-radius: 8px;
+  background: #1e293b;
+  color: #e5e7eb;
+}
+input,
+select {
+  background: #fff;
+  border: 1px solid var(--border);
+  color: var(--fg);
+}
+.btn {
+  background: var(--btn);
+  color: var(--btnfg);
+  border: none;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+.btn:hover {
+  background: #1e40af;
+}
+
+.small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.badge {
+  background: var(--badge);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+.badge.ok {
+  color: var(--ok);
+}
+.badge.warn {
+  color: var(--warn);
+}
+.result-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 8px 0;
+}
+
+footer {
+  padding: 20px 16px;
+  color: var(--muted);
 }
 
 /* ===================== RESPONSIVE ===================== */
-@media (max-width: 900px) {
-  .main-grid {
-    flex-direction: column;
+@media (max-width: 920px) {
+  #sidebar {
+    left: -240px;
   }
-  .side {
-    width: 100%;
+  #sidebar.active {
+    left: 0;
+  }
+  .content {
+    margin-left: 0;
+  }
+  .cams {
+    grid-template-columns: 1fr;
+  }
+  .row,
+  .row2 {
+    grid-template-columns: 1fr;
   }
   .menu-btn {
-    margin-right: 10px;
+    display: flex;
   }
-  #sidebar {
-    width: 200px;
-  }
-}
-/* ===== Nút đăng xuất ở góc phải header ===== */
-.topbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: #f9fafb;
-  border-bottom: 1px solid #ddd;
-  padding: 10px 20px;
-}
-
-.user-controls {
-  display: flex;
-  align-items: center;
-}
-
-.logout-btn {
-  background: #ef4444;
-  color: #fff;
-  border: none;
-  padding: 8px 14px;
-  border-radius: 6px;
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: background 0.25s ease;
-}
-
-.logout-btn:hover {
-  background: #dc2626;
 }

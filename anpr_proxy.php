@@ -4,7 +4,7 @@ define('MODE', 'CLOUD_MODE'); // 'CLOUD_MODE' hoặc 'LOCAL_MODE'
 
 // CLOUD (PlateRecognizer)
 $PLATE_API_URL   = 'https://api.platerecognizer.com/v1/plate-reader/';
-$PLATE_API_TOKEN = '87ba5243d6a596480ddd28d7a32e4e6cb6b54f42';
+$PLATE_API_TOKEN = '420ea197eed536918ad006de380c7d33ac494059';
 
 // LOCAL (tự host FastAPI)
 $LOCAL_ANPR_URL  = 'http://127.0.0.1:8000/anpr';
