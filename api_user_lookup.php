@@ -1,4 +1,5 @@
 <?php
+date_default_timezone_set('Asia/Ho_Chi_Minh');
 header('Content-Type: application/json; charset=utf-8');
 require_once __DIR__ . '/db_connect.php';
 
@@ -9,12 +10,11 @@ if ($q === '') {
     exit;
 }
 
-// Lấy thông tin xe
 $stmt = $conn->prepare("
     SELECT id, uid, plate, vehicle_type, in_time, out_time, zone, fee
     FROM vehicle_sessions
     WHERE uid = ? OR plate = ?
-    ORDER BY id DESC
+    ORDER BY in_time DESC
     LIMIT 1
 ");
 $stmt->bind_param("ss", $q, $q);
@@ -28,66 +28,98 @@ if ($res->num_rows === 0) {
 
 $car = $res->fetch_assoc();
 
-// Lấy bảng khung giờ
-$fee_q = $conn->query("
-    SELECT * FROM fee_time_ranges ORDER BY id ASC
-");
-
+/* ----- Load fee ranges ----- */
 $fee_ranges = [];
-while ($r = $fee_q->fetch_assoc()) {
-    $fee_ranges[] = $r;
-}
+$qr = $conn->query("SELECT * FROM fee_time_ranges ORDER BY id ASC");
+while ($r = $qr->fetch_assoc()) $fee_ranges[] = $r;
 
-// Hàm tính phí theo từng khung
-function calc_fee($in, $out, $type, $fee_ranges) {
+/* ----- Hàm tính phí ----- */
+function calc_fee($vtype, $inTime, $outTime, $ranges)
+{
+    $inTS  = strtotime($inTime);
+    $outTS = strtotime($outTime);
+
+    if ($outTS <= $inTS) return 0;
+
     $total = 0;
 
-    $start = strtotime($in);
-    $end   = strtotime($out);
+    while ($inTS < $outTS) {
 
-    if ($end <= $start) return 0;
+        $currentDay = date("Y-m-d", $inTS);
+        $applied = null;
+        $blockStart = null;
+        $blockEnd   = null;
 
-    // Lặp từng phút (an toàn, chính xác)
-    for ($t = $start; $t < $end; $t += 60) {
+        foreach ($ranges as $r) {
 
-        $h = date("H:i:s", $t);
+            $startTS = strtotime("$currentDay {$r['start_time']}");
+            $endTS   = strtotime("$currentDay {$r['end_time']}");
 
-        foreach ($fee_ranges as $fr) {
+            if ($r['start_time'] > $r['end_time']) {
 
-            $s = $fr['start_time'];
-            $e = $fr['end_time'];
+                if ($inTS >= $startTS) {
+                    $blockStart = $startTS;
+                    $blockEnd   = strtotime("$currentDay {$r['end_time']} +1 day");
+                    $applied = $r; break;
+                }
 
-            $in_range = false;
-
-            if ($s < $e) {
-                // Khung giờ bình thường
-                if ($h >= $s && $h < $e) $in_range = true;
+                if ($inTS < $endTS) {
+                    $blockStart = strtotime("$currentDay {$r['start_time']} -1 day");
+                    $blockEnd   = $endTS;
+                    $applied = $r; break;
+                }
 
             } else {
-                // Khung qua đêm (22:00 - 05:00)
-                if ($h >= $s || $h < $e) $in_range = true;
-            }
-
-            if ($in_range) {
-                if ($type === "Car")  $total += $fr['fee_car_per_hour'] / 60;
-                if ($type === "Motorcycle") $total += $fr['fee_mc_per_hour'] / 60;
-                break;
+                if ($inTS >= $startTS && $inTS < $endTS) {
+                    $blockStart = $startTS;
+                    $blockEnd   = $endTS;
+                    $applied = $r; break;
+                }
             }
         }
+
+        if (!$applied) {
+            $inTS += 60;
+            continue;
+        }
+
+        $segmentEnd = min($blockEnd, $outTS);
+
+        if ($segmentEnd <= $inTS) {
+            $inTS += 60;
+            continue;
+        }
+
+        $minutes = ($segmentEnd - $inTS) / 60;
+
+        $rate = ($vtype === 'CAR')
+            ? $applied['fee_car_per_hour']
+            : $applied['fee_mc_per_hour'];
+
+        $total += ($minutes / 60) * $rate;
+
+        $inTS = $segmentEnd;
     }
 
-    return floor($total);
+    return round($total);
 }
 
-// Nếu xe chưa ra => tính đến hiện tại
-if ($car['out_time'] === null) {
+/* ===== TÍNH PHÍ ===== */
+if ($car['out_time'] === null || $car['out_time'] == "0000-00-00 00:00:00") {
+
     $now = date("Y-m-d H:i:s");
-    $fee_now = calc_fee($car["in_time"], $now, $car["vehicle_type"], $fee_ranges);
-    $car['fee'] = $fee_now;
     $car['out_time'] = "Đang gửi";
+
+    $car['fee'] = calc_fee(
+        strtoupper($car['vehicle_type']),
+        $car["in_time"],
+        $now,
+        $fee_ranges
+    );
 }
 
 echo json_encode([
     "ok" => true,
     "data" => $car
 ]);
+?>

@@ -68,6 +68,7 @@ $list = $conn->query("SELECT * FROM fee_time_ranges ORDER BY start_time ASC");
     <ul>
       <li><a href="admin_dashboard.php">👥 Quản lý người dùng</a></li>
       <li><a href="admin_dashboard.php#records">🚘 Lịch sử xe ra/vào</a></li>
+      <li><a href="admin_dashboard.php#revenue">💰 Doanh thu</a></li>
       <li><a href="system_config.php">⚙️ Cài đặt hệ thống</a></li>
       <li><a class="active" href="time_fee_config.php">⏱️ Khung giờ & phí</a></li>
     </ul>

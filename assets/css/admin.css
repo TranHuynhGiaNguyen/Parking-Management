@@ -7,7 +7,7 @@ body {
 
 /* === HEADER === */
 .admin-header {
-  background: #0f172a;           /* xanh đậm như scan_auto */
+  background: #0f172a;          
   color: #fff;
   padding: 15px 30px;
   display: flex;
@@ -36,7 +36,7 @@ body {
 /* === SIDEBAR === */
 .sidebar {
   width: 220px;
-  background: #1e293b;       /* xanh xám đậm giống scan_auto */
+  background: #1e293b;     
   color: #fff;
   padding-top: 20px;
   transition: all 0.3s ease;

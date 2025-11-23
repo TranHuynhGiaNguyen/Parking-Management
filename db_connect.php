@@ -10,7 +10,7 @@ $conn = new mysqli($servername, $dbuser, $dbpass, $dbname);
 
 // Kiểm tra kết nối
 if ($conn->connect_error) {
-    die("❌ Kết nối CSDL thất bại: " . $conn->connect_error);
+    die(" Kết nối CSDL thất bại: " . $conn->connect_error);
 }
 
 // Đặt charset UTF-8 để tránh lỗi tiếng Việt

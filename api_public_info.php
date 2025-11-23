@@ -1,4 +1,5 @@
 <?php
+date_default_timezone_set('Asia/Ho_Chi_Minh');
 require_once __DIR__ . '/db_connect.php';
 header("Content-Type: application/json; charset=utf-8");
 
@@ -8,12 +9,15 @@ while ($r = $res->fetch_assoc()) {
     $fees[] = [
         "start" => $r["start_time"],
         "end"   => $r["end_time"],
-        "car"   => number_format($r["fee_car_per_hour"]),
-        "mc"    => number_format($r["fee_mc_per_hour"])
+        "car"   => (int)$r["fee_car_per_hour"],
+        "mc"    => (int)$r["fee_mc_per_hour"]
+
     ];
 }
 
-$cfg = $conn->query("SELECT max_car, max_motorcycle FROM system_config WHERE id = 1")->fetch_assoc();
+$cfg = $conn->query("SELECT max_car, max_motorcycle FROM system_config WHERE id = 1")
+           ->fetch_assoc();
+
 $max_car = (int)$cfg["max_car"];
 $max_mc  = (int)$cfg["max_motorcycle"];
 

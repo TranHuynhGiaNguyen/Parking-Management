@@ -2,22 +2,44 @@
 require_once __DIR__ . '/db_connect.php';
 header('Content-Type: application/json');
 
-$cfg = $conn->query("SELECT max_car, max_motorcycle FROM system_config WHERE id=1 LIMIT 1");
-if(!$cfg || !$cfg->num_rows){ echo json_encode(['ok'=>false]); exit; }
-$cfg = $cfg->fetch_assoc();
-$MAX_CAR = (int)$cfg['max_car'];
-$MAX_MC  = (int)$cfg['max_motorcycle'];
+// Lấy tổng theo loại CAR + MC
+$sql = "
+  SELECT 
+      type,
+      SUM(max_slots) AS max_slots,
+      SUM(used) AS used_slots
+  FROM parking_zones
+  GROUP BY type
+";
 
-$rows = $conn->query("SELECT vehicle_type, COUNT(*) AS c 
-  FROM vehicle_sessions WHERE out_time IS NULL GROUP BY vehicle_type");
-$used_car = 0; $used_mc = 0;
-if ($rows) while($r = $rows->fetch_assoc()){
-  if (strcasecmp($r['vehicle_type'],'Car')===0) $used_car = (int)$r['c'];
-  if (strcasecmp($r['vehicle_type'],'Motorcycle')===0) $used_mc = (int)$r['c'];
+$res = $conn->query($sql);
+if (!$res) {
+    echo json_encode(['ok'=>false, 'error'=>'DB error']);
+    exit;
 }
 
+$car = ['max'=>0,'used'=>0];
+$mc  = ['max'=>0,'used'=>0];
+
+while ($r = $res->fetch_assoc()) {
+    if ($r['type'] === 'CAR') {
+        $car['max']  = (int)$r['max_slots'];
+        $car['used'] = (int)$r['used_slots'];
+    }
+    if ($r['type'] === 'MC') {
+        $mc['max']  = (int)$r['max_slots'];
+        $mc['used'] = (int)$r['used_slots'];
+    }
+}
+
+$car['available'] = max(0, $car['max'] - $car['used']);
+$car['is_full']   = $car['used'] >= $car['max'];
+
+$mc['available']  = max(0, $mc['max'] - $mc['used']);
+$mc['is_full']    = $mc['used'] >= $mc['max'];
+
 echo json_encode([
-  'ok'=>true,
-  'car'=>['max'=>$MAX_CAR,'used'=>$used_car,'available'=>max(0,$MAX_CAR-$used_car),'is_full'=>$used_car >= $MAX_CAR],
-  'motorcycle'=>['max'=>$MAX_MC,'used'=>$used_mc,'available'=>max(0,$MAX_MC-$used_mc),'is_full'=>$used_mc >= $MAX_MC]
+    'ok' => true,
+    'car' => $car,
+    'motorcycle' => $mc
 ]);

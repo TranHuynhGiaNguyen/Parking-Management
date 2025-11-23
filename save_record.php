@@ -1,207 +1,268 @@
 <?php
+date_default_timezone_set('Asia/Ho_Chi_Minh');
 require_once __DIR__ . '/db_connect.php';
 header('Content-Type: application/json; charset=utf-8');
 
-
-/*  Chuẩn hóa loại xe    */
+/* -------------------- CHUẨN HÓA -------------------- */
 function normalize_vtype($raw) {
-    $r = strtolower(trim((string)$raw));
-    if ($r === '') return null;
-    if (in_array($r, ['car','cars'])) return 'Car';
-    if (in_array($r, ['motorcycle','motorbike','motor','bike','mc','moto'])) return 'Motorcycle';
-    if (strpos($r,'car') !== false) return 'Car';
-    if (strpos($r,'motor') !== false || strpos($r,'bike') !== false) return 'Motorcycle';
-    return null;
+    $r = strtoupper(trim((string)$raw));
+    if ($r === 'CAR') return 'CAR';
+    if ($r === 'MC')  return 'MC';
+    if (strpos($r,'CAR') !== false) return 'CAR';
+    if (strpos($r,'MOTOR') !== false || strpos($r,'BIKE') !== false) return 'MC';
+    return 'MC';
 }
 
-/*  Chuẩn hóa biển số     */
 function normalize_plate($p) {
-    $p = strtoupper(trim($p));
-    return preg_replace('/[^A-Z0-9]/', '', $p);
+    return preg_replace('/[^A-Z0-9]/', '', strtoupper(trim($p)));
 }
 
-
-/*  Đọc cấu hình hệ thống (scan_mode)  */
-$cfg = $conn->query("
-    SELECT scan_mode 
-    FROM system_config 
-    WHERE id=1 LIMIT 1
-");
-
+/* -------------------- ĐỌC CẤU HÌNH -------------------- */
+$cfg = $conn->query("SELECT scan_mode FROM system_config WHERE id=1 LIMIT 1");
 if (!$cfg || !$cfg->num_rows) {
-    http_response_code(500);
-    echo json_encode(['ok'=>false, 'error'=>'Không đọc được cấu hình hệ thống']);
+    echo json_encode(['ok'=>false,'error'=>'Không đọc được cấu hình']);
     exit;
 }
 $scan_mode = $cfg->fetch_assoc()['scan_mode'] ?? 'both';
 
-
-/*  Lấy input từ FE   */
+/* -------------------- INPUT -------------------- */
 $uid        = isset($_POST['uid']) ? strtoupper(preg_replace('/[^0-9A-F]/','', $_POST['uid'])) : '';
-$plate_raw  = isset($_POST['plate']) ? trim($_POST['plate']) : '';
+$plate_raw  = trim($_POST['plate'] ?? '');
 $plate_norm = normalize_plate($plate_raw);
 $raw_type   = $_POST['vehicle_type'] ?? '';
 
 if ($uid === '') {
-    http_response_code(400);
-    echo json_encode(['ok'=>false,'error'=>'Thiếu UID']);
-    exit;
+    echo json_encode(['ok'=>false,'error'=>'Thiếu UID']); exit;
 }
-if ($plate_raw === '' || $plate_raw === '—' || $plate_raw === '-') {
-    http_response_code(400);
-    echo json_encode(['ok'=>false,'error'=>'Chưa nhận diện được biển số']);
-    exit;
+if ($plate_raw === '' || $plate_raw === "-" || $plate_raw === "—") {
+    echo json_encode(['ok'=>false,'error'=>'Không nhận diện được biển số']); exit;
 }
+$vtype = normalize_vtype($raw_type);
 
-/* Chuẩn hóa loại xe */
-$vtype = normalize_vtype($raw_type) ?? 'Motorcycle';
-
-
-/*  Chống trùng request 2 giây                                 */
+/* -------------------- ANTI-SPAM 2s -------------------- */
 $chk = $conn->prepare("
     SELECT 1 FROM card_reads
-    WHERE uid=? AND plate=? 
+    WHERE uid=? AND plate=?
       AND captured_at >= (NOW() - INTERVAL 2 SECOND)
     LIMIT 1
 ");
 $chk->bind_param("ss", $uid, $plate_raw);
-$chk->execute();
-$chk->store_result();
-
+$chk->execute(); $chk->store_result();
 if ($chk->num_rows > 0) {
-    echo json_encode(['ok'=>true,'message'=>'Bỏ trùng']);
-    exit;
+    echo json_encode(['ok'=>true,'message'=>'Bỏ trùng']); exit;
 }
 $chk->close();
 
-
-/* Ghi log đọc thẻ */
+/* -------------------- LOG ĐỌC THẺ -------------------- */
 $ins = $conn->prepare("
     INSERT INTO card_reads(uid, plate, vehicle_type, captured_at)
     VALUES(?,?,?,NOW())
 ");
-$ins->bind_param("sss", $uid, $plate_raw, $vtype);
+$ins->bind_param("sss",$uid,$plate_raw,$vtype);
 $ins->execute();
 $ins->close();
 
+/* ============================================================
+   KHÓA CHẶN: 1 BIỂN SỐ CHỈ THUỘC 1 UID – KHÔNG CHO XE DÙNG 2 THẺ
+   ============================================================ */
 
-/*  Kiểm tra phiên đang mở                                     */
+/* --- kiểm tra biển số này từng thuộc UID nào --- */
+$cp = $conn->prepare("
+    SELECT uid FROM vehicle_sessions
+    WHERE plate=? 
+    ORDER BY id DESC LIMIT 1
+");
+$cp->bind_param("s", $plate_raw);
+$cp->execute();
+$prev = $cp->get_result()->fetch_assoc();
+$cp->close();
+
+/* --- nếu biển từng thuộc UID khác → CHẶN --- */
+if ($prev && $prev['uid'] !== $uid) {
+    echo json_encode([
+        'ok'=>false,
+        'error'=>'Biển số này trước đây thuộc UID khác — không cho check-in',
+        'expected_uid'=>$prev['uid'],
+        'your_uid'=>$uid
+    ]);
+    exit;
+}
+
+/* --- kiểm tra xe đang gửi bằng UID khác --- */
+$cp2 = $conn->prepare("
+    SELECT uid FROM vehicle_sessions
+    WHERE plate=? AND out_time IS NULL
+    LIMIT 1
+");
+$cp2->bind_param("s", $plate_raw);
+$cp2->execute();
+$busy = $cp2->get_result()->fetch_assoc();
+$cp2->close();
+
+if ($busy && $busy['uid'] !== $uid) {
+    echo json_encode([
+        'ok'=>false,
+        'error'=>'Xe này đang gửi bằng UID khác — không cho vào'
+    ]);
+    exit;
+}
+
+/* -------------------- CHECK PHIÊN MỞ CỦA UID HIỆN TẠI -------------------- */
 $q = $conn->prepare("
-    SELECT id, uid, plate, vehicle_type, in_time
+    SELECT id, uid, plate, zone, vehicle_type, in_time
     FROM vehicle_sessions
     WHERE uid=? AND out_time IS NULL
     LIMIT 1
 ");
-$q->bind_param("s", $uid);
+$q->bind_param("s",$uid);
 $q->execute();
 $res  = $q->get_result();
 $open = $res && $res->num_rows ? $res->fetch_assoc() : null;
 $q->close();
 
+/* -------------------- CHỌN BÃI -------------------- */
+function pick_zone($conn, $vtype) {
+    $vtype = $conn->real_escape_string($vtype);
+    $q = $conn->query("
+        SELECT zone, used, max_slots 
+        FROM parking_zones
+        WHERE type = '$vtype'
+        ORDER BY zone ASC
+    ");
+    while ($z = $q->fetch_assoc()) {
+        if ((int)$z['used'] < (int)$z['max_slots']) return $z['zone'];
+    }
+    return null;
+}
 
-/*  SCAN MODE = OUT nhưng không có session → từ chối           */
+/* -------------------- OUT ONLY -------------------- */
 if ($scan_mode === 'out' && !$open) {
-    echo json_encode([
-        'ok'=>false,
-        'error'=>'Máy đang ở chế độ RA — Xe này không có trong bãi'
-    ]);
+    echo json_encode(['ok'=>false,'error'=>'Máy để chế độ RA – xe không nằm trong bãi']);
     exit;
 }
 
-/*  SCAN MODE = IN → chỉ cho vào, không cho ra                */
+/* -------------------- IN ONLY -------------------- */
 if ($scan_mode === 'in') {
 
     if ($open) {
         echo json_encode([
             'ok'=>true,
             'action'=>'checkin_ignore',
-            'message'=>'Xe đã trong bãi — bỏ qua OUT'
+            'message'=>'Xe đã trong bãi — bỏ qua'
         ]);
         exit;
     }
 
-    // tạo phiên vào
+    $zone = pick_zone($conn, $vtype);
+    if (!$zone) {
+        echo json_encode(['ok'=>false,'error'=>'Bãi FULL']); exit;
+    }
+
     $i = $conn->prepare("
-        INSERT INTO vehicle_sessions(uid, plate, vehicle_type, in_time)
-        VALUES(?,?,?,NOW())
+        INSERT INTO vehicle_sessions(uid, plate, vehicle_type, zone, in_time)
+        VALUES(?,?,?,?,NOW())
     ");
-    $i->bind_param("sss",$uid,$plate_raw,$vtype);
+    $i->bind_param("ssss",$uid,$plate_raw,$vtype,$zone);
     $i->execute();
+    $session_id = $i->insert_id;
     $i->close();
+
+    $conn->query("UPDATE parking_zones SET used = used + 1 WHERE zone='$zone'");
 
     echo json_encode([
         'ok'=>true,
         'action'=>'checkin',
+        'zone'=>$zone,
+        'session_id'=>$session_id,
         'message'=>'Xe vào – '.$plate_raw
     ]);
     exit;
 }
 
-
-/*  CHECKOUT — KHỚP BIỂN + TÍNH PHÍ                    */
+/* -------------------- CHECKOUT -------------------- */
 if ($open) {
 
-    $plate_in_norm  = normalize_plate($open['plate']);
-    $plate_out_norm = $plate_norm;
-
-    /* Nếu biển số không trùng → chặn */
-    if ($plate_in_norm !== $plate_out_norm) {
+    if (normalize_plate($open['plate']) !== $plate_norm) {
         echo json_encode([
             'ok'=>false,
             'action'=>'checkout_denied',
-            'error'=>'Xe ra không khớp với xe đã vào',
+            'error'=>'Biển số không khớp!',
             'detail'=>[
-                'plate_in'  => $open['plate'],
-                'plate_out' => $plate_raw,
-                'message'   => '⚠ Xe RA không phải chiếc đã VÀO bằng thẻ này!'
+                'plate_in'=>$open['plate'],
+                'plate_out'=>$plate_raw
             ]
         ]);
         exit;
     }
 
-    /* === TÍNH PHÍ THEO KHUNG GIỜ (KHÔNG TÍNH PHÚT) === */
+    /* -------------------- TÍNH PHÍ -------------------- */
+    function calc_fee($vehicleType, $inTime, $conn) {
 
-    $in_time = new DateTime($open['in_time']);
-    $hour_in = (int)$in_time->format("H"); // chỉ lấy giờ vào
-    $storedType = normalize_vtype($open['vehicle_type']) ?? 'Motorcycle';
+        $outTime = date("Y-m-d H:i:s");
 
-    // Lấy toàn bộ khung giờ
-    $ranges = $conn->query("SELECT * FROM fee_time_ranges ORDER BY start_time ASC");
+        $ranges = [];
+        $qr = $conn->query("SELECT * FROM fee_time_ranges ORDER BY id ASC");
+        while ($r = $qr->fetch_assoc()) $ranges[] = $r;
 
-    $fee = 0;
+        $inTS  = strtotime($inTime);
+        $outTS = strtotime($outTime);
+        $total = 0;
 
-    while ($r = $ranges->fetch_assoc()) {
+        while ($inTS < $outTS) {
 
-        list($sh, $sm) = explode(':', $r['start_time']);
-        list($eh, $em) = explode(':', $r['end_time']);
+            $currentDay = date("Y-m-d", $inTS);
+            $found = null;
+            $blockStart = null;
+            $blockEnd = null;
 
-        $sh = (int)$sh;
-        $eh = (int)$eh;
+            foreach ($ranges as $r) {
 
-        $match = false;
+                $startTS = strtotime("$currentDay {$r['start_time']}");
+                $endTS   = strtotime("$currentDay {$r['end_time']}");
 
-        // Khung qua đêm
-        if ($sh > $eh) {
-            if ($hour_in >= $sh || $hour_in < $eh) {
-                $match = true;
+                if ($r['start_time'] > $r['end_time']) {
+
+                    if ($inTS >= $startTS) {
+                        $blockStart = $startTS;
+                        $blockEnd   = strtotime("$currentDay {$r['end_time']} +1 day");
+                        $found = $r; break;
+                    }
+
+                    if ($inTS < $endTS) {
+                        $blockStart = strtotime("$currentDay {$r['start_time']} -1 day");
+                        $blockEnd   = $endTS;
+                        $found = $r; break;
+                    }
+                }
+                else {
+                    if ($inTS >= $startTS && $inTS < $endTS) {
+                        $blockStart = $startTS;
+                        $blockEnd   = $endTS;
+                        $found = $r; break;
+                    }
+                }
             }
-        }
-        // Khung bình thường
-        else {
-            if ($hour_in >= $sh && $hour_in < $eh) {
-                $match = true;
-            }
+
+            if (!$found) break;
+
+            $segmentEnd = min($blockEnd, $outTS);
+            $minutes = ($segmentEnd - $inTS) / 60;
+
+            $rate = ($vehicleType === 'CAR')
+                ? $found['fee_car_per_hour']
+                : $found['fee_mc_per_hour'];
+
+            $total += ($minutes / 60) * $rate;
+
+            $inTS = $segmentEnd;
         }
 
-        if ($match) {
-            $fee = ($storedType === 'Car')
-                ? (int)$r['fee_car_per_hour']
-                : (int)$r['fee_mc_per_hour'];
-            break;
-        }
+        return round($total);
     }
 
-    /* === Cập nhật DB === */
+    $storedType = normalize_vtype($open['vehicle_type']);
+    $fee = calc_fee($storedType, $open['in_time'], $conn);
+
     $u = $conn->prepare("
         UPDATE vehicle_sessions
         SET out_time = NOW(), fee = ?
@@ -211,31 +272,43 @@ if ($open) {
     $u->execute();
     $u->close();
 
+    $zone_old = $open['zone'];
+    $conn->query("UPDATE parking_zones SET used = GREATEST(used - 1, 0) WHERE zone='$zone_old'");
+
     echo json_encode([
         'ok'=>true,
         'action'=>'checkout',
-        'message'=>'Xe ra – '.$open['plate'],
-        'fee'=>$fee
+        'fee'=>$fee,
+        'session_id'=>$open['id'],
+        'message'=>'Xe ra – '.$open['plate']
     ]);
     exit;
 }
 
+/* -------------------- CHECK-IN DEFAULT (MODE BOTH) -------------------- */
 
-/*  Không có session → tạo phiên mới (IN)                       */
+$zone = pick_zone($conn, $vtype);
+if (!$zone) {
+    echo json_encode(['ok'=>false,'error'=>'Bãi FULL']); exit;
+}
 
 $i = $conn->prepare("
-    INSERT INTO vehicle_sessions(uid, plate, vehicle_type, in_time)
-    VALUES(?,?,?,NOW())
+    INSERT INTO vehicle_sessions(uid, plate, vehicle_type, zone, in_time)
+    VALUES(?,?,?,?,NOW())
 ");
-$i->bind_param("sss",$uid,$plate_raw,$vtype);
+$i->bind_param("ssss",$uid,$plate_raw,$vtype,$zone);
 $i->execute();
+$session_id = $i->insert_id;
 $i->close();
+
+$conn->query("UPDATE parking_zones SET used = used + 1 WHERE zone='$zone'");
 
 echo json_encode([
     'ok'=>true,
     'action'=>'checkin',
+    'zone'=>$zone,
+    'session_id'=>$session_id,
     'message'=>'Xe vào – '.$plate_raw
 ]);
 exit;
-
 ?>

@@ -5,11 +5,11 @@ header('Content-Type: application/json');
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(405); echo json_encode(['ok'=>false,'error'=>'Method']); exit; }
 
 $uid    = trim($_POST['uid'] ?? '');
-$plate  = trim($_POST['plate'] ?? ''); // có thể để trống nếu chưa có
-$auto_vtype = trim($_POST['auto_vehicle_type'] ?? 'unknown'); // Car | Motorcycle | unknown
-$override_vtype = trim($_POST['override_vehicle_type'] ?? ''); // nếu user sửa tay dropdown
+$plate  = trim($_POST['plate'] ?? '');
+$auto_vtype = trim($_POST['auto_vehicle_type'] ?? 'unknown'); 
+$override_vtype = trim($_POST['override_vehicle_type'] ?? ''); 
 $vehicleType = $override_vtype ?: $auto_vtype;
-if (!in_array($vehicleType, ['Car','Motorcycle'])) $vehicleType = 'Motorcycle'; // mặc định
+if (!in_array($vehicleType, ['Car','Motorcycle'])) $vehicleType = 'Motorcycle'; 
 
 if ($uid === '') { echo json_encode(['ok'=>false, 'error'=>'UID rỗng']); exit; }
 
